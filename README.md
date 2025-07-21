@@ -12,14 +12,17 @@ This is a personal document search engine I built using Flask and Sentence Trans
 - Session-based search history and favorites
 - (Optional) Smart answer generator using OpenAI
 
--Folder Structure
-  search-engine/
-├── app.py
-├── utils.py
-├── documents/
-├── templates/
-│ ├── index.html
-│ └── document.html
+search-engine/
+├── app.py                # Flask backend app – handles routes, queries, and model interaction
+├── utils.py              # Utility to load and preprocess documents from /documents
+├── documents/            # Folder to store text documents to be indexed and searched
+│   ├── doc1.txt
+│   ├── doc2.txt
+│   └── ...               # Add more plain text files here
+├── templates/            # HTML templates rendered by Flask
+│   ├── index.html        # Main search interface with form
+│   └── document.html     # Full document view template
+
 
 
 
