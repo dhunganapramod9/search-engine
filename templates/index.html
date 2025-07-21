@@ -1,57 +1,66 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Search Engine</title>
+    <title>Semantic Search</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f4; }
-        h1 { color: #2c3e50; }
-        input[type="text"] {
-            width: 80%;
-            padding: 10px;
-            font-size: 18px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        input[type="submit"] {
-            padding: 10px 20px;
-            font-size: 18px;
-            border: none;
-            background-color: #2ecc71;
-            color: white;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .result {
-            background-color: white;
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 6px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .snippet {
-            margin-top: 8px;
-            color: #555;
-            font-style: italic;
-        }
+        body { font-family: sans-serif; margin: 40px; background: #f4f4f4; }
+        .result { background: white; padding: 15px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 20px; }
+        .bar { height: 8px; border-radius: 5px; margin-top: 5px; }
+        .green { background: #2ecc71; }
+        .yellow { background: #f1c40f; }
+        .red { background: #e74c3c; }
     </style>
 </head>
 <body>
-    <h1>🧠 AI Semantic Search</h1>
+    <h1>🧠 My AI Semantic Search</h1>
+
+    <!-- I added a simple search bar -->
     <form method="POST">
-        <input type="text" name="query" placeholder="Search anything..." value="{{ query }}">
+        <input type="text" name="query" placeholder="Search..." value="{{ query }}" style="width: 70%; padding: 10px;">
         <input type="submit" value="Search">
     </form>
 
+    <!-- This is the file upload section -->
+    <form action="/upload" method="POST" enctype="multipart/form-data" style="margin-top:20px;">
+        <input type="file" name="file">
+        <input type="submit" value="Upload">
+    </form>
+
+    {% if answer %}
+        <!-- LLM-generated answer appears here -->
+        <h2>💬 Answer:</h2>
+        <div style="background:#fff;padding:15px;border-left:4px solid #2ecc71;">{{ answer }}</div>
+    {% endif %}
+
+    {% if keywords %}
+        <h3>🔥 Top Keywords:</h3>
+        <ul>
+            {% for kw in keywords %}
+                <li>{{ kw }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
     {% if results %}
-        <h2>Results:</h2>
-        {% for result in results %}
+        <h2>📄 Results:</h2>
+        {% for r in results %}
             <div class="result">
-                <strong>{{ result.filename }}</strong> — {{ result.score }}% match
-                <p class="snippet">{{ result.snippet }}...</p>
+                <strong><a href="{{ url_for('view_document', filename=r.filename) }}">{{ r.filename }}</a></strong> — {{ r.score }}% match
+                <div class="bar {% if r.score > 80 %}green{% elif r.score > 50 %}yellow{% else %}red{% endif %}" style="width:{{ r.score }}%;"></div>
+                <p style="margin-top:10px;"><i>{{ r.snippet }}...</i></p>
+                <a href="{{ url_for('favorite', filename=r.filename) }}">⭐ Favorite</a>
             </div>
         {% endfor %}
-    {% elif query %}
-        <p>No results found for "{{ query }}"</p>
+    {% endif %}
+
+    {% if history %}
+        <h3>🕓 Recent Searches:</h3>
+        <ul>{% for h in history %}<li>{{ h }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    {% if favorites %}
+        <h3>🌟 Favorites:</h3>
+        <ul>{% for f in favorites %}<li>{{ f }}</li>{% endfor %}</ul>
     {% endif %}
 </body>
 </html>
