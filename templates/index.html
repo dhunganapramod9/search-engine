@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search Engine</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f4; }
+        h1 { color: #2c3e50; }
+        input[type="text"] {
+            width: 80%;
+            padding: 10px;
+            font-size: 18px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        input[type="submit"] {
+            padding: 10px 20px;
+            font-size: 18px;
+            border: none;
+            background-color: #2ecc71;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .result {
+            background-color: white;
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .snippet {
+            margin-top: 8px;
+            color: #555;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧠 AI Semantic Search</h1>
+    <form method="POST">
+        <input type="text" name="query" placeholder="Search anything..." value="{{ query }}">
+        <input type="submit" value="Search">
+    </form>
+
+    {% if results %}
+        <h2>Results:</h2>
+        {% for result in results %}
+            <div class="result">
+                <strong>{{ result.filename }}</strong> — {{ result.score }}% match
+                <p class="snippet">{{ result.snippet }}...</p>
+            </div>
+        {% endfor %}
+    {% elif query %}
+        <p>No results found for "{{ query }}"</p>
+    {% endif %}
+</body>
+</html>
