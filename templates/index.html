@@ -2,39 +2,32 @@
 <html>
 <head>
     <title>Semantic Search</title>
-    <style>
-        body { font-family: sans-serif; margin: 40px; background: #f4f4f4; }
-        .result { background: white; padding: 15px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 20px; }
-        .bar { height: 8px; border-radius: 5px; margin-top: 5px; }
-        .green { background: #2ecc71; }
-        .yellow { background: #f1c40f; }
-        .red { background: #e74c3c; }
-    </style>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <h1>🧠 My AI Semantic Search</h1>
 
     <!-- I added a simple search bar -->
     <form method="POST">
-        <input type="text" name="query" placeholder="Search..." value="{{ query }}" style="width: 70%; padding: 10px;">
-        <input type="submit" value="Search">
+        <input type="text" name="query" placeholder="Search..." value="{{ query }}" class="search-bar">
+        <input type="submit" value="Search" class="search-btn">
     </form>
 
     <!-- This is the file upload section -->
-    <form action="/upload" method="POST" enctype="multipart/form-data" style="margin-top:20px;">
+    <form action="/upload" method="POST" enctype="multipart/form-data" class="upload-form">
         <input type="file" name="file">
-        <input type="submit" value="Upload">
+        <input type="submit" value="Upload" class="upload-btn">
     </form>
 
     {% if answer %}
         <!-- LLM-generated answer appears here -->
         <h2>💬 Answer:</h2>
-        <div style="background:#fff;padding:15px;border-left:4px solid #2ecc71;">{{ answer }}</div>
+        <div class="answer-box">{{ answer }}</div>
     {% endif %}
 
     {% if keywords %}
         <h3>🔥 Top Keywords:</h3>
-        <ul>
+        <ul class="keywords-list">
             {% for kw in keywords %}
                 <li>{{ kw }}</li>
             {% endfor %}
@@ -47,20 +40,20 @@
             <div class="result">
                 <strong><a href="{{ url_for('view_document', filename=r.filename) }}">{{ r.filename }}</a></strong> — {{ r.score }}% match
                 <div class="bar {% if r.score > 80 %}green{% elif r.score > 50 %}yellow{% else %}red{% endif %}" style="width:{{ r.score }}%;"></div>
-                <p style="margin-top:10px;"><i>{{ r.snippet }}...</i></p>
-                <a href="{{ url_for('favorite', filename=r.filename) }}">⭐ Favorite</a>
+                <p class="snippet"><i>{{ r.snippet }}...</i></p>
+                <a href="{{ url_for('favorite', filename=r.filename) }}" class="favorite-link">⭐ Favorite</a>
             </div>
         {% endfor %}
     {% endif %}
 
     {% if history %}
-        <h3>🕓 Recent Searches:</h3>
-        <ul>{% for h in history %}<li>{{ h }}</li>{% endfor %}</ul>
+        <h3>🔓 Recent Searches:</h3>
+        <ul class="history-list">{% for h in history %}<li>{{ h }}</li>{% endfor %}</ul>
     {% endif %}
 
     {% if favorites %}
         <h3>🌟 Favorites:</h3>
-        <ul>{% for f in favorites %}<li>{{ f }}</li>{% endfor %}</ul>
+        <ul class="favorites-list">{% for f in favorites %}<li>{{ f }}</li>{% endfor %}</ul>
     {% endif %}
 </body>
 </html>
