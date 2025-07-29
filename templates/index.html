@@ -1,59 +1,157 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Semantic Search</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Semantic search engine for document discovery">
+    <title>{% if query %}{{ query }} - {% endif %}Semantic Search Engine</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='20'>🔍</text></svg>">
 </head>
 <body>
-    <h1>🧠 My AI Semantic Search</h1>
+    <header>
+        <h1>🧠 Semantic Search Engine</h1>
+    </header>
 
-    <!-- I added a simple search bar -->
-    <form method="POST">
-        <input type="text" name="query" placeholder="Search..." value="{{ query }}" class="search-bar">
-        <input type="submit" value="Search" class="search-btn">
-    </form>
+    <main>
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
-    <!-- This is the file upload section -->
-    <form action="/upload" method="POST" enctype="multipart/form-data" class="upload-form">
-        <input type="file" name="file">
-        <input type="submit" value="Upload" class="upload-btn">
-    </form>
+        <!-- Search Form -->
+        <section class="search-section">
+            <form method="POST" class="search-form">
+                <div class="search-input-group">
+                    <input 
+                        type="text" 
+                        name="query" 
+                        placeholder="Enter your search query..." 
+                        value="{{ query or '' }}" 
+                        class="search-bar"
+                        required
+                        autocomplete="off"
+                    >
+                    <button type="submit" class="search-btn">Search</button>
+                </div>
+            </form>
 
-    {% if answer %}
-        <!-- LLM-generated answer appears here -->
-        <h2>💬 Answer:</h2>
-        <div class="answer-box">{{ answer }}</div>
-    {% endif %}
+            <!-- File Upload Form -->
+            <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" class="upload-form">
+                <div class="upload-input-group">
+                    <input 
+                        type="file" 
+                        name="file" 
+                        accept=".txt,.pdf,.docx"
+                        class="file-input"
+                        id="file-upload"
+                    >
+                    <label for="file-upload" class="file-label">Choose File</label>
+                    <button type="submit" class="upload-btn">Upload</button>
+                </div>
+                <small class="upload-hint">Supported formats: TXT, PDF, DOCX (Max 16MB)</small>
+            </form>
+        </section>
 
-    {% if keywords %}
-        <h3>🔥 Top Keywords:</h3>
-        <ul class="keywords-list">
-            {% for kw in keywords %}
-                <li>{{ kw }}</li>
-            {% endfor %}
-        </ul>
-    {% endif %}
+        <!-- Keywords Section -->
+        {% if keywords %}
+            <section class="keywords-section">
+                <h3>💡 Popular Keywords</h3>
+                <ul class="keywords-list">
+                    {% for keyword in keywords %}
+                        <li class="keyword-item">{{ keyword }}</li>
+                    {% endfor %}
+                </ul>
+            </section>
+        {% endif %}
 
-    {% if results %}
-        <h2>📄 Results:</h2>
-        {% for r in results %}
-            <div class="result">
-                <strong><a href="{{ url_for('view_document', filename=r.filename) }}">{{ r.filename }}</a></strong> — {{ r.score }}% match
-                <div class="bar {% if r.score > 80 %}green{% elif r.score > 50 %}yellow{% else %}red{% endif %}" style="width:{{ r.score }}%;"></div>
-                <p class="snippet"><i>{{ r.snippet }}...</i></p>
-                <a href="{{ url_for('favorite', filename=r.filename) }}" class="favorite-link">⭐ Favorite</a>
-            </div>
-        {% endfor %}
-    {% endif %}
+        <!-- Search Results -->
+        {% if results %}
+            <section class="results-section">
+                <h2>📄 Search Results ({{ results|length }} found)</h2>
+                {% for result in results %}
+                    <article class="result">
+                        <div class="result-header">
+                            <h3>
+                                <a href="{{ url_for('view_document', filename=result.filename) }}" class="result-title">
+                                    {{ result.filename }}
+                                </a>
+                            </h3>
+                            <div class="result-meta">
+                                <span class="score">{{ result.score }}% match</span>
+                                <a href="{{ url_for('toggle_favorite', filename=result.filename) }}" 
+                                   class="favorite-link" 
+                                   title="{% if result.filename in favorites %}Remove from{% else %}Add to{% endif %} favorites">
+                                    {% if result.filename in favorites %}
+                                        ⭐ Favorited
+                                    {% else %}
+                                        ☆ Favorite
+                                    {% endif %}
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div class="score-bar-container">
+                            <div class="score-bar {% if result.score > 80 %}high{% elif result.score > 50 %}medium{% else %}low{% endif %}" 
+                                 style="width: {{ result.score }}%;" 
+                                 title="{{ result.score }}% similarity">
+                            </div>
+                        </div>
+                        
+                        {% if result.snippet %}
+                            <p class="result-snippet">{{ result.snippet }}</p>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            </section>
+        {% elif query %}
+            <section class="no-results">
+                <p>No documents found matching "{{ query }}". Try different keywords or upload more documents.</p>
+            </section>
+        {% endif %}
 
-    {% if history %}
-        <h3>🔓 Recent Searches:</h3>
-        <ul class="history-list">{% for h in history %}<li>{{ h }}</li>{% endfor %}</ul>
-    {% endif %}
+        <!-- Search History -->
+        {% if history %}
+            <section class="history-section">
+                <h3>🕒 Recent Searches</h3>
+                <ul class="history-list">
+                    {% for search in history %}
+                        <li class="history-item">
+                            <form method="POST" class="inline-form">
+                                <input type="hidden" name="query" value="{{ search }}">
+                                <button type="submit" class="history-button">{{ search }}</button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+        {% endif %}
 
-    {% if favorites %}
-        <h3>🌟 Favorites:</h3>
-        <ul class="favorites-list">{% for f in favorites %}<li>{{ f }}</li>{% endfor %}</ul>
-    {% endif %}
+        <!-- Favorites -->
+        {% if favorites %}
+            <section class="favorites-section">
+                <h3>⭐ Favorite Documents</h3>
+                <ul class="favorites-list">
+                    {% for favorite in favorites %}
+                        <li class="favorite-item">
+                            <a href="{{ url_for('view_document', filename=favorite) }}" class="favorite-link">
+                                {{ favorite }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+        {% endif %}
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Semantic Search Engine. Powered by AI.</p>
+    </footer>
 </body>
 </html>

@@ -1,16 +1,41 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>{{ filename }}</title>
-    <style>
-        body { font-family: sans-serif; margin: 40px; background: #fff; }
-        pre { white-space: pre-wrap; font-family: monospace; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Document view - {{ filename }}">
+    <title>{{ filename }} - Semantic Search Engine</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='20'>📄</text></svg>">
 </head>
-<body>
-    <h1>{{ filename }}</h1>
-    <a href="/">← Back to Search</a>
-    <hr>
-    <pre>{{ content }}</pre>
+<body class="document-view">
+    <header>
+        <div class="document-header">
+            <h1>📄 {{ filename }}</h1>
+            <nav class="document-nav">
+                <a href="{{ url_for('index') }}" class="back-link">← Back to Search</a>
+                <a href="{{ url_for('toggle_favorite', filename=filename) }}" class="favorite-action">
+                    ⭐ Toggle Favorite
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="document-content">
+        <div class="content-wrapper">
+            <div class="document-meta">
+                <span class="file-name">{{ filename }}</span>
+                <span class="content-length">{{ content|length }} characters</span>
+            </div>
+            
+            <article class="document-text">
+                <pre>{{ content }}</pre>
+            </article>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Semantic Search Engine</p>
+    </footer>
 </body>
 </html>
