@@ -3,35 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Error page">
-    <title>Error - Semantic Search Engine</title>
+    <title>Error - Search Engine</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='20'>❌</text></svg>">
 </head>
 <body class="error-page">
     <header>
-        <h1>🧠 Semantic Search Engine</h1>
+        <h1>Search Engine</h1>
     </header>
 
     <main class="error-content">
         <div class="error-container">
-            <div class="error-icon">⚠️</div>
+
             <h2>Oops! Something went wrong</h2>
             <p class="error-message">{{ error or "An unexpected error occurred" }}</p>
             
             <div class="error-actions">
                 <a href="{{ url_for('index') }}" class="btn btn-primary">
-                    🏠 Go Home
+                    Go Home
                 </a>
                 <button onclick="history.back()" class="btn btn-secondary">
-                    ← Go Back
+                    Go Back
                 </button>
             </div>
         </div>
     </main>
 
     <footer>
-        <p>&copy; 2024 Semantic Search Engine</p>
+        <p>&copy; 2024 Search Engine</p>
     </footer>
 </body>
 </html> 

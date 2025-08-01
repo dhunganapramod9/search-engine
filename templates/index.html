@@ -3,14 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Semantic search engine for document discovery">
-    <title>{% if query %}{{ query }} - {% endif %}Semantic Search Engine</title>
+    <title>Search Engine</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='20'>🔍</text></svg>">
 </head>
 <body>
     <header>
-        <h1>🧠 Semantic Search Engine</h1>
+        <h1>Search Engine</h1>
     </header>
 
     <main>
@@ -59,22 +57,12 @@
             </form>
         </section>
 
-        <!-- Keywords Section -->
-        {% if keywords %}
-            <section class="keywords-section">
-                <h3>💡 Popular Keywords</h3>
-                <ul class="keywords-list">
-                    {% for keyword in keywords %}
-                        <li class="keyword-item">{{ keyword }}</li>
-                    {% endfor %}
-                </ul>
-            </section>
-        {% endif %}
+
 
         <!-- Search Results -->
         {% if results %}
             <section class="results-section">
-                <h2>📄 Search Results ({{ results|length }} found)</h2>
+                <h2>Search Results ({{ results|length }} found)</h2>
                 {% for result in results %}
                     <article class="result">
                         <div class="result-header">
@@ -85,15 +73,6 @@
                             </h3>
                             <div class="result-meta">
                                 <span class="score">{{ result.score }}% match</span>
-                                <a href="{{ url_for('toggle_favorite', filename=result.filename) }}" 
-                                   class="favorite-link" 
-                                   title="{% if result.filename in favorites %}Remove from{% else %}Add to{% endif %} favorites">
-                                    {% if result.filename in favorites %}
-                                        ⭐ Favorited
-                                    {% else %}
-                                        ☆ Favorite
-                                    {% endif %}
-                                </a>
                             </div>
                         </div>
                         
@@ -116,42 +95,13 @@
             </section>
         {% endif %}
 
-        <!-- Search History -->
-        {% if history %}
-            <section class="history-section">
-                <h3>🕒 Recent Searches</h3>
-                <ul class="history-list">
-                    {% for search in history %}
-                        <li class="history-item">
-                            <form method="POST" class="inline-form">
-                                <input type="hidden" name="query" value="{{ search }}">
-                                <button type="submit" class="history-button">{{ search }}</button>
-                            </form>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </section>
-        {% endif %}
 
-        <!-- Favorites -->
-        {% if favorites %}
-            <section class="favorites-section">
-                <h3>⭐ Favorite Documents</h3>
-                <ul class="favorites-list">
-                    {% for favorite in favorites %}
-                        <li class="favorite-item">
-                            <a href="{{ url_for('view_document', filename=favorite) }}" class="favorite-link">
-                                {{ favorite }}
-                            </a>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </section>
-        {% endif %}
+
+
     </main>
 
     <footer>
-        <p>&copy; 2024 Semantic Search Engine. Powered by AI.</p>
+        <p>&copy; 2024 Search Engine</p>
     </footer>
 </body>
 </html>

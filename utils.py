@@ -1,21 +1,12 @@
 import os
 import re
-from collections import Counter
+
 from typing import List, Tuple, Optional
 from PyPDF2 import PdfReader
 import docx
 
 
 def load_documents(folder_path: str = "documents") -> Tuple[List[str], List[str]]:
-    """
-    Load all text documents from the specified folder.
-    
-    Args:
-        folder_path: Path to the documents directory
-        
-    Returns:
-        Tuple of (document_contents, filenames)
-    """
     docs = []
     filenames = []
     
@@ -39,43 +30,10 @@ def load_documents(folder_path: str = "documents") -> Tuple[List[str], List[str]
     return docs, filenames
 
 
-def extract_keywords(docs: List[str], top_n: int = 10) -> List[str]:
-    """
-    Extract the most common keywords from document corpus.
-    
-    Args:
-        docs: List of document strings
-        top_n: Number of top keywords to return
-        
-    Returns:
-        List of most common keywords
-    """
-    if not docs:
-        return []
-        
-    all_text = " ".join(docs).lower()
-    # Extract words with 4+ characters, excluding common stop words
-    words = re.findall(r'\b[a-z]{4,}\b', all_text)
-    
-    # Filter out common stop words
-    stop_words = {'that', 'this', 'with', 'from', 'they', 'been', 'have', 
-                  'were', 'said', 'each', 'which', 'their', 'would', 'there'}
-    words = [word for word in words if word not in stop_words]
-    
-    common = Counter(words).most_common(top_n)
-    return [word for word, _ in common]
+
 
 
 def extract_text_from_file(file) -> str:
-    """
-    Extract text content from uploaded files (TXT, PDF, DOCX).
-    
-    Args:
-        file: Flask uploaded file object
-        
-    Returns:
-        Extracted text content
-    """
     if not file or not file.filename:
         return ""
         
@@ -100,15 +58,6 @@ def extract_text_from_file(file) -> str:
 
 
 def sanitize_filename(filename: str) -> str:
-    """
-    Sanitize filename to prevent directory traversal attacks.
-    
-    Args:
-        filename: Original filename
-        
-    Returns:
-        Sanitized filename safe for filesystem operations
-    """
     # Remove path components and potentially dangerous characters
     filename = os.path.basename(filename)
     filename = re.sub(r'[^\w\s.-]', '', filename)
@@ -116,16 +65,6 @@ def sanitize_filename(filename: str) -> str:
 
 
 def extract_snippet(content: str, max_length: int = 150) -> str:
-    """
-    Extract a meaningful snippet from document content.
-    
-    Args:
-        content: Full document content
-        max_length: Maximum snippet length
-        
-    Returns:
-        Meaningful snippet from the content
-    """
     if not content:
         return ""
         

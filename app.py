@@ -3,23 +3,20 @@ import logging
 from typing import List, Dict, Any, Optional
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from sentence_transformers import SentenceTransformer, util
-from utils import load_documents, extract_keywords, extract_text_from_file, sanitize_filename, extract_snippet
+from utils import load_documents, extract_text_from_file, sanitize_filename, extract_snippet
 import secrets
 
 
 class Config:
-    """Application configuration."""
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
     DOCUMENTS_FOLDER = os.environ.get('DOCUMENTS_FOLDER', 'documents')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
-    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
     MODEL_NAME = "all-MiniLM-L6-v2"
     MAX_SEARCH_RESULTS = 20
     MIN_SIMILARITY_SCORE = 0.1
 
 
 class SearchEngine:
-    """Semantic search engine using sentence transformers."""
     
     def __init__(self, config: Config):
         self.config = config
@@ -27,11 +24,9 @@ class SearchEngine:
         self.documents = []
         self.filenames = []
         self.doc_embeddings = None
-        self.keywords = []
         self._initialize()
     
     def _initialize(self):
-        """Initialize the search engine components."""
         try:
             logging.info("Loading sentence transformer model...")
             self.model = SentenceTransformer(self.config.MODEL_NAME)
@@ -42,12 +37,10 @@ class SearchEngine:
             raise
     
     def reload_documents(self):
-        """Reload documents and regenerate embeddings."""
         try:
             self.documents, self.filenames = load_documents(self.config.DOCUMENTS_FOLDER)
             if self.documents:
                 self.doc_embeddings = self.model.encode(self.documents, convert_to_tensor=True)
-                self.keywords = extract_keywords(self.documents)
                 logging.info(f"Loaded {len(self.documents)} documents")
             else:
                 logging.warning("No documents found")
@@ -55,18 +48,8 @@ class SearchEngine:
             logging.error(f"Error loading documents: {e}")
             self.documents, self.filenames = [], []
             self.doc_embeddings = None
-            self.keywords = []
     
     def search(self, query: str) -> List[Dict[str, Any]]:
-        """
-        Perform semantic search on documents.
-        
-        Args:
-            query: Search query string
-            
-        Returns:
-            List of search results with filename, score, and snippet
-        """
         if not query.strip() or not self.documents:
             return []
         
@@ -94,16 +77,6 @@ class SearchEngine:
             return []
     
     def add_document(self, filename: str, content: str) -> bool:
-        """
-        Add a new document to the search index.
-        
-        Args:
-            filename: Name of the document file
-            content: Document content
-            
-        Returns:
-            True if successful, False otherwise
-        """
         try:
             safe_filename = sanitize_filename(filename)
             filepath = os.path.join(self.config.DOCUMENTS_FOLDER, safe_filename)
@@ -122,7 +95,6 @@ class SearchEngine:
 
 
 def create_app(config_class=Config) -> Flask:
-    """Application factory pattern."""
     app = Flask(__name__)
     app.config.from_object(config_class)
     
@@ -137,24 +109,14 @@ def create_app(config_class=Config) -> Flask:
     
     @app.route("/", methods=["GET", "POST"])
     def index():
-        """Main search interface."""
         results = []
         query = ""
         
-        # Initialize session data
-        if "history" not in session:
-            session["history"] = []
-        if "favorites" not in session:
-            session["favorites"] = []
+
         
         if request.method == "POST":
             query = request.form.get("query", "").strip()
             if query:
-                # Add to search history (keep last 10)
-                if query not in session["history"]:
-                    session["history"].append(query)
-                    session["history"] = session["history"][-10:]
-                
                 results = search_engine.search(query)
                 
                 if not results:
@@ -163,15 +125,11 @@ def create_app(config_class=Config) -> Flask:
         return render_template(
             "index.html",
             results=results,
-            query=query,
-            keywords=search_engine.keywords[:10],
-            history=session.get("history", [])[-5:],  # Show last 5 searches
-            favorites=session.get("favorites", [])
+            query=query
         )
     
     @app.route("/document/<filename>")
     def view_document(filename: str):
-        """Display full document content."""
         safe_filename = sanitize_filename(filename)
         filepath = os.path.join(app.config['DOCUMENTS_FOLDER'], safe_filename)
         
@@ -190,7 +148,6 @@ def create_app(config_class=Config) -> Flask:
     
     @app.route("/upload", methods=["POST"])
     def upload_file():
-        """Handle file upload."""
         if "file" not in request.files:
             flash("No file selected.", "error")
             return redirect(url_for("index"))
@@ -224,28 +181,10 @@ def create_app(config_class=Config) -> Flask:
         
         return redirect(url_for("index"))
     
-    @app.route("/favorite/<filename>")
-    def toggle_favorite(filename: str):
-        """Toggle document favorite status."""
-        safe_filename = sanitize_filename(filename)
-        
-        if "favorites" not in session:
-            session["favorites"] = []
-        
-        favorites = session["favorites"]
-        if safe_filename in favorites:
-            favorites.remove(safe_filename)
-            flash(f"Removed {safe_filename} from favorites.", "info")
-        else:
-            favorites.append(safe_filename)
-            flash(f"Added {safe_filename} to favorites.", "success")
-        
-        session["favorites"] = favorites
-        return redirect(url_for("index"))
+
     
     @app.route("/api/search")
     def api_search():
-        """API endpoint for search functionality."""
         query = request.args.get("q", "").strip()
         if not query:
             return jsonify({"error": "Query parameter 'q' is required"}), 400
@@ -255,12 +194,10 @@ def create_app(config_class=Config) -> Flask:
     
     @app.errorhandler(404)
     def not_found(error):
-        """Handle 404 errors."""
         return render_template("error.html", error="Page not found"), 404
     
     @app.errorhandler(500)
     def internal_error(error):
-        """Handle 500 errors."""
         logging.error(f"Internal error: {error}")
         return render_template("error.html", error="Internal server error"), 500
     

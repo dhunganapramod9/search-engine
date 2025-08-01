@@ -3,20 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Document view - {{ filename }}">
-    <title>{{ filename }} - Semantic Search Engine</title>
+    <title>{{ filename }} - Search Engine</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='20'>📄</text></svg>">
 </head>
 <body class="document-view">
     <header>
         <div class="document-header">
-            <h1>📄 {{ filename }}</h1>
+            <h1>{{ filename }}</h1>
             <nav class="document-nav">
                 <a href="{{ url_for('index') }}" class="back-link">← Back to Search</a>
-                <a href="{{ url_for('toggle_favorite', filename=filename) }}" class="favorite-action">
-                    ⭐ Toggle Favorite
-                </a>
             </nav>
         </div>
     </header>
@@ -35,7 +30,7 @@
     </main>
 
     <footer>
-        <p>&copy; 2024 Semantic Search Engine</p>
+        <p>&copy; 2024 Search Engine</p>
     </footer>
 </body>
 </html>
