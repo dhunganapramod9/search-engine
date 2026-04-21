@@ -1,213 +1,172 @@
-import os
 import logging
-from typing import List, Dict, Any, Optional
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-from sentence_transformers import SentenceTransformer, util
-from utils import load_documents, extract_text_from_file, sanitize_filename, extract_snippet
-import secrets
+import time
+from typing import Optional
+from uuid import uuid4
+
+from flask import Flask, g, jsonify, request
+
+from config import Config
+from services.ingest import IngestService
+from services.jobs import JobService
+from services.search import SearchService, SentenceTransformerEmbedder
+from services.storage import StorageService
+from utils.files import is_allowed_extension
+from openapi import get_openapi_spec
 
 
-class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
-    DOCUMENTS_FOLDER = os.environ.get('DOCUMENTS_FOLDER', 'documents')
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
-    MODEL_NAME = "all-MiniLM-L6-v2"
-    MAX_SEARCH_RESULTS = 20
-    MIN_SIMILARITY_SCORE = 0.1
-
-
-class SearchEngine:
-    
-    def __init__(self, config: Config):
-        self.config = config
-        self.model = None
-        self.documents = []
-        self.filenames = []
-        self.doc_embeddings = None
-        self._initialize()
-    
-    def _initialize(self):
-        try:
-            logging.info("Loading sentence transformer model...")
-            self.model = SentenceTransformer(self.config.MODEL_NAME)
-            self.reload_documents()
-            logging.info("Search engine initialized successfully")
-        except Exception as e:
-            logging.error(f"Failed to initialize search engine: {e}")
-            raise
-    
-    def reload_documents(self):
-        try:
-            self.documents, self.filenames = load_documents(self.config.DOCUMENTS_FOLDER)
-            if self.documents:
-                self.doc_embeddings = self.model.encode(self.documents, convert_to_tensor=True)
-                logging.info(f"Loaded {len(self.documents)} documents")
-            else:
-                logging.warning("No documents found")
-        except Exception as e:
-            logging.error(f"Error loading documents: {e}")
-            self.documents, self.filenames = [], []
-            self.doc_embeddings = None
-    
-    def search(self, query: str) -> List[Dict[str, Any]]:
-        if not query.strip() or not self.documents:
-            return []
-        
-        try:
-            query_embedding = self.model.encode(query, convert_to_tensor=True)
-            scores = util.cos_sim(query_embedding, self.doc_embeddings)[0]
-            
-            results = []
-            for filename, content, score in zip(self.filenames, self.documents, scores):
-                score_val = float(score)
-                if score_val >= self.config.MIN_SIMILARITY_SCORE:
-                    snippet = extract_snippet(content)
-                    results.append({
-                        "filename": filename,
-                        "score": round(score_val * 100, 2),
-                        "snippet": snippet
-                    })
-            
-            # Sort by score and limit results
-            results.sort(key=lambda x: x["score"], reverse=True)
-            return results[:self.config.MAX_SEARCH_RESULTS]
-            
-        except Exception as e:
-            logging.error(f"Error during search: {e}")
-            return []
-    
-    def add_document(self, filename: str, content: str) -> bool:
-        try:
-            safe_filename = sanitize_filename(filename)
-            filepath = os.path.join(self.config.DOCUMENTS_FOLDER, safe_filename)
-            
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(content)
-            
-            # Reload all documents to update embeddings
-            self.reload_documents()
-            logging.info(f"Added document: {safe_filename}")
-            return True
-            
-        except Exception as e:
-            logging.error(f"Error adding document {filename}: {e}")
-            return False
-
-
-def create_app(config_class=Config) -> Flask:
-    app = Flask(__name__)
-    app.config.from_object(config_class)
-    
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s %(levelname)s %(name)s %(message)s'
+def _build_services(config: Config, embedder=None):
+    embedder = embedder or SentenceTransformerEmbedder(config.model_name)
+    storage_service = StorageService(config.database_path)
+    ingest_service = IngestService(
+        storage_service=storage_service,
+        embedder=embedder,
+        uploads_dir=config.uploads_dir,
+        max_chunk_size=config.max_chunk_size,
+        chunk_overlap=config.chunk_overlap,
     )
-    
-    # Initialize search engine
-    search_engine = SearchEngine(config_class)
-    
-    @app.route("/", methods=["GET", "POST"])
-    def index():
-        results = []
-        query = ""
-        
+    search_service = SearchService(storage_service=storage_service, embedder=embedder)
+    job_service = JobService(
+        storage_service=storage_service,
+        ingest_service=ingest_service,
+        max_workers=config.ingestion_workers,
+    )
+    return storage_service, ingest_service, search_service, job_service
 
-        
-        if request.method == "POST":
-            query = request.form.get("query", "").strip()
-            if query:
-                results = search_engine.search(query)
-                
-                if not results:
-                    flash("No matching documents found.", "info")
-        
-        return render_template(
-            "index.html",
-            results=results,
-            query=query
+
+def create_app(config: Optional[Config] = None, embedder=None) -> Flask:
+    config = config or Config()
+    config.ensure_runtime_dirs()
+
+    app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = config.max_content_length
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    storage_service, ingest_service, search_service, job_service = _build_services(config, embedder=embedder)
+
+    @app.before_request
+    def before_request():
+        g.request_id = request.headers.get("X-Request-ID", str(uuid4()))
+        g.start_time = time.perf_counter()
+
+    @app.after_request
+    def after_request(response):
+        elapsed_ms = (time.perf_counter() - g.start_time) * 1000
+        response.headers["X-Request-ID"] = g.request_id
+        logging.info(
+            "request_id=%s method=%s path=%s status=%s latency_ms=%.2f",
+            g.request_id,
+            request.method,
+            request.path,
+            response.status_code,
+            elapsed_ms,
         )
-    
-    @app.route("/document/<filename>")
-    def view_document(filename: str):
-        safe_filename = sanitize_filename(filename)
-        filepath = os.path.join(app.config['DOCUMENTS_FOLDER'], safe_filename)
-        
-        if not os.path.exists(filepath):
-            flash("Document not found.", "error")
-            return redirect(url_for("index"))
-        
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                content = f.read()
-            return render_template("document.html", filename=safe_filename, content=content)
-        except Exception as e:
-            logging.error(f"Error reading document {safe_filename}: {e}")
-            flash("Error reading document.", "error")
-            return redirect(url_for("index"))
-    
-    @app.route("/upload", methods=["POST"])
-    def upload_file():
-        if "file" not in request.files:
-            flash("No file selected.", "error")
-            return redirect(url_for("index"))
-        
-        file = request.files["file"]
-        if not file or not file.filename:
-            flash("No file selected.", "error")
-            return redirect(url_for("index"))
-        
-        # Validate file type
-        allowed_extensions = {'.txt', '.pdf', '.docx'}
-        file_ext = os.path.splitext(file.filename.lower())[1]
-        if file_ext not in allowed_extensions:
-            flash("Only TXT, PDF, and DOCX files are allowed.", "error")
-            return redirect(url_for("index"))
-        
-        try:
-            content = extract_text_from_file(file)
-            if not content.strip():
-                flash("The uploaded file appears to be empty.", "warning")
-                return redirect(url_for("index"))
-            
-            if search_engine.add_document(file.filename, content):
-                flash(f"Successfully uploaded: {file.filename}", "success")
-            else:
-                flash("Error uploading file. Please try again.", "error")
-                
-        except Exception as e:
-            logging.error(f"Error processing upload: {e}")
-            flash("Error processing file. Please try again.", "error")
-        
-        return redirect(url_for("index"))
-    
+        return response
 
-    
-    @app.route("/api/search")
-    def api_search():
-        query = request.args.get("q", "").strip()
+    @app.get("/")
+    def index():
+        return jsonify(
+            {
+                "name": config.app_name,
+                "message": "Use /documents to upload files and /search?q=... to query indexed content.",
+                "docs": "/docs",
+            }
+        )
+
+    @app.get("/health")
+    def health():
+        return jsonify({"status": "ok"})
+
+    @app.get("/openapi.json")
+    def openapi_spec():
+        return jsonify(get_openapi_spec())
+
+    @app.get("/docs")
+    def docs():
+        return """
+        <!doctype html>
+        <html>
+          <head>
+            <title>Semantic Search API Docs</title>
+            <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+          </head>
+          <body>
+            <div id="swagger-ui"></div>
+            <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+            <script>
+              window.ui = SwaggerUIBundle({url: '/openapi.json', dom_id: '#swagger-ui'});
+            </script>
+          </body>
+        </html>
+        """
+
+    @app.post("/documents")
+    def upload_document():
+        if "file" not in request.files:
+            return jsonify({"error": "Missing multipart file field named 'file'."}), 400
+
+        uploaded = request.files["file"]
+        if not uploaded or not uploaded.filename:
+            return jsonify({"error": "File is required."}), 400
+        if not is_allowed_extension(uploaded.filename):
+            return jsonify({"error": "Unsupported file type. Allowed: .txt, .pdf, .docx"}), 400
+
+        payload = uploaded.read()
+        if not payload:
+            return jsonify({"error": "Uploaded file is empty."}), 400
+
+        try:
+            job = job_service.create_ingestion_job(uploaded.filename, payload)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception:
+            logging.exception("Unexpected ingestion failure")
+            return jsonify({"error": "Failed to queue ingestion job."}), 500
+        return jsonify(job), 202
+
+    @app.get("/jobs/<string:job_id>")
+    def get_job(job_id: str):
+        job = job_service.get_job(job_id)
+        if not job:
+            return jsonify({"error": "Job not found."}), 404
+        return jsonify(job)
+
+    @app.get("/documents/<int:document_id>")
+    def get_document(document_id: int):
+        document = storage_service.get_document(document_id)
+        if not document:
+            return jsonify({"error": "Document not found."}), 404
+        return jsonify(document)
+
+    @app.get("/search")
+    def search():
+        query = (request.args.get("q") or "").strip()
         if not query:
-            return jsonify({"error": "Query parameter 'q' is required"}), 400
-        
-        results = search_engine.search(query)
-        return jsonify({"query": query, "results": results})
-    
-    @app.errorhandler(404)
-    def not_found(error):
-        return render_template("error.html", error="Page not found"), 404
-    
-    @app.errorhandler(500)
-    def internal_error(error):
-        logging.error(f"Internal error: {error}")
-        return render_template("error.html", error="Internal server error"), 500
-    
+            return jsonify({"error": "Query parameter 'q' is required."}), 400
+        top_k = min(max(int(request.args.get("top_k", config.max_search_results)), 1), 100)
+        min_score = float(request.args.get("min_score", config.min_similarity_score))
+
+        try:
+            results = search_service.hybrid_search(
+                query=query,
+                limit=top_k,
+                min_score=min_score,
+                semantic_weight=config.hybrid_semantic_weight,
+                lexical_weight=config.hybrid_lexical_weight,
+                rerank_top_k=config.rerank_top_k,
+            )
+        except Exception:
+            logging.exception("Search failed")
+            return jsonify({"error": "Search failed."}), 500
+        return jsonify({"query": query, "count": len(results), "results": results, "mode": "hybrid"})
+
+    @app.errorhandler(413)
+    def payload_too_large(_):
+        return jsonify({"error": f"File exceeds max size of {config.max_content_length} bytes."}), 413
+
     return app
 
 
 if __name__ == "__main__":
-    app = create_app()
-    # Use environment variables for production deployment
-    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
-    port = int(os.environ.get('PORT', 5000))
-    
-    app.run(debug=debug_mode, host='0.0.0.0', port=port)
+    runtime_config = Config()
+    flask_app = create_app(runtime_config)
+    flask_app.run(host="0.0.0.0", port=runtime_config.port, debug=runtime_config.flask_debug)

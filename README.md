@@ -1,233 +1,170 @@
-# Semantic Search Engine
+# Semantic Document Search Engine (Flask)
 
-A document search application I built for my machine learning class project. Instead of just matching keywords, it understands the meaning of your search using AI embeddings. You can upload different types of documents and search through them semantically.
+This project is a backend-first semantic search API for uploaded documents. It ingests TXT, PDF, and DOCX files asynchronously, extracts and chunks text, creates vector embeddings, and returns hybrid-ranked search results with snippets. The codebase is intentionally compact and structured to highlight API design, ingestion pipelines, ranking quality, persistence, and operational reliability.
 
-## What it does
+## Key Backend Features
 
-This project lets you search through documents based on meaning rather than exact keyword matches. I implemented it using Flask for the web interface and Sentence Transformers for the AI part.
+- Flask REST API with clear endpoint contracts and JSON responses
+- Asynchronous ingestion jobs (`queued` -> `processing` -> `completed/failed`)
+- Hybrid retrieval (semantic + lexical) with reranking
+- Text normalization and chunking for retrieval quality
+- Semantic ranking with Sentence Transformers embeddings plus score breakdown
+- SQLite persistence for document metadata and chunk index
+- Structured request logging with request IDs and latency tracking
+- OpenAPI contract (`/openapi.json`) + Swagger UI (`/docs`)
+- Evaluation harness for `precision@k` and `MRR`
+- Production-minded validation and error handling
+- Pytest suite covering ingestion, extraction, search, and API behavior
 
-### Main features
+## Architecture Overview
 
-- Search documents by meaning using sentence embeddings
-- Upload TXT, PDF, and DOCX files
-- Get snippets from relevant documents with similarity scores
-- Keep track of search history and favorite documents
-- Simple web interface that works on mobile too
-
-### Technical stuff I learned
-
-- How to use pre-trained transformer models for semantic search
-- Building a Flask web application with proper structure
-- Handling file uploads and text extraction
-- Session management and user interface design
-- Basic security practices for web apps
-
-## How I built it
-
-**Backend**: Flask (Python web framework)
-**AI Model**: Sentence Transformers (all-MiniLM-L6-v2 model)
-**File processing**: PyPDF2 for PDFs, python-docx for Word docs
-**Frontend**: HTML, CSS, and basic JavaScript
-**Data storage**: Files on disk, sessions for user data
-
-## Project structure
-
-```
+```text
 search-engine/
-├── app.py                 # Main Flask application
-├── utils.py              # Helper functions for document processing
-├── static/
-│   └── style.css         # Styling for the web interface
-├── templates/
-│   ├── index.html        # Main search page
-│   ├── document.html     # Document viewer
-│   └── error.html        # Error page
-├── documents/            # Where uploaded documents are stored
-│   ├── doc1.txt
-│   ├── doc2.txt
-│   └── doc3.txt
-├── requirements.txt      # Python dependencies
-└── README.md
+  app.py
+  config.py
+  services/
+    ingest.py
+    jobs.py
+    search.py
+    storage.py
+  openapi.py
+  scripts/
+    evaluate.py
+  eval/
+    sample_queries.json
+  utils/
+    files.py
+    text_processing.py
+  tests/
+    test_ingest.py
+    test_file_extraction.py
+    test_search.py
+    test_api.py
+  uploads/      # runtime, gitignored
+  data/         # runtime, gitignored
 ```
 
-## Setting it up
+Data flow:
+1. `POST /documents` creates an ingestion job and returns a `job_id`.
+2. Job pipeline extracts text, normalizes/chunks it, creates embeddings, and persists indexed chunks in SQLite.
+3. `GET /jobs/<id>` exposes status and resulting `document_id`.
+4. `GET /search` runs hybrid retrieval and reranking for ranked snippets.
 
-### What you need
+## API Endpoints
 
-- Python 3.8 or newer
-- pip for installing packages
+### `POST /documents`
+Queue an async ingestion job.
 
-### Installation steps
+Request (multipart):
+```bash
+curl -X POST http://localhost:5000/documents \
+  -F "file=@notes.txt"
+```
 
-1. **Download the code**
+Response:
+```json
+{
+  "id": "6dc3d9d2-6ca3-43d1-a66a-52f6276a7ae9",
+  "filename": "notes.txt",
+  "status": "queued",
+  "document_id": null,
+  "error_message": null,
+  "created_at": "2026-04-21T12:00:00+00:00",
+  "updated_at": "2026-04-21T12:00:00+00:00"
+}
+```
 
-   ```bash
-   git clone <repository-url>
-   cd semantic-search-engine
-   ```
+### `GET /jobs/<job_id>`
+Check ingestion progress and final status.
 
-2. **Set up a virtual environment** (recommended)
+### `GET /search?q=...`
+Run hybrid semantic + lexical search with reranking.
 
-   ```bash
-   python -m venv venv
+Request:
+```bash
+curl "http://localhost:5000/search?q=backend+flask+api"
+```
 
-   # On Windows
-   venv\Scripts\activate
+Response:
+```json
+{
+  "query": "backend flask api",
+  "count": 1,
+  "results": [
+    {
+      "document_id": 1,
+      "filename": "notes.txt",
+      "chunk_index": 0,
+      "score": 0.8123,
+      "semantic_score": 0.7921,
+      "lexical_score": 0.8750,
+      "snippet": "Flask API design with semantic indexing..."
+    }
+  ],
+  "mode": "hybrid"
+}
+```
 
-   # On Mac/Linux
-   source venv/bin/activate
-   ```
+### `GET /documents/<id>`
+Fetch indexed document metadata and extracted content.
 
-3. **Install the required packages**
+### `GET /health`
+Simple health check endpoint.
 
+### `GET /openapi.json` and `GET /docs`
+Machine-readable API contract and interactive Swagger UI.
+
+## Local Setup
+
+1. Create and activate a virtual environment.
+2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-
-4. **Optional: Set environment variables**
-
-   ```bash
-   # Windows
-   set SECRET_KEY=your-secret-key-here
-   set DOCUMENTS_FOLDER=documents
-
-   # Mac/Linux
-   export SECRET_KEY=your-secret-key-here
-   export DOCUMENTS_FOLDER=documents
-   ```
-
-5. **Run the application**
-
+3. Run the app:
    ```bash
    python app.py
    ```
 
-6. **Open in your browser**
-   Go to `http://localhost:5000`
+Optional environment variables:
+- `MODEL_NAME` (default: `all-MiniLM-L6-v2`)
+- `DATABASE_PATH` (default: `data/search_engine.db`)
+- `UPLOADS_DIR` (default: `uploads`)
+- `MAX_CONTENT_LENGTH` (default: `16777216`)
+- `MAX_SEARCH_RESULTS` (default: `10`)
+- `MIN_SIMILARITY_SCORE` (default: `0.1`)
+- `HYBRID_SEMANTIC_WEIGHT` (default: `0.75`)
+- `HYBRID_LEXICAL_WEIGHT` (default: `0.25`)
+- `RERANK_TOP_K` (default: `30`)
+- `INGESTION_WORKERS` (default: `2`)
+- `FLASK_DEBUG` (default: `false`)
+- `PORT` (default: `5000`)
 
-## Configuration options
+## Tests
 
-You can customize the app using environment variables:
-
-| Variable           | What it does                  | Default value  |
-| ------------------ | ----------------------------- | -------------- |
-| `SECRET_KEY`       | Secret key for Flask sessions | Auto-generated |
-| `DOCUMENTS_FOLDER` | Where to store uploaded files | `documents`    |
-| `FLASK_DEBUG`      | Enable debug mode             | `False`        |
-| `PORT`             | Which port to run on          | `5000`         |
-
-## How to use it
-
-### Basic searching
-
-1. Type your search query in the search box
-2. Look at the results ranked by how similar they are
-3. Click on document names to read the full content
-
-### Uploading files
-
-1. Click "Choose File" to pick a document
-2. Supports TXT, PDF, and DOCX files (up to 16MB)
-3. Click "Upload" to add it to the search index
-
-### Other features
-
-- Click the star to favorite documents for easy access later
-- Your recent searches are saved automatically
-- Use `/api/search?q=your-query` for programmatic access
-
-## API endpoint
-
-If you want to use this programmatically:
-
-```
-GET /api/search?q=<your query>
-```
-
-Returns JSON like this:
-
-```json
-{
-  "query": "machine learning",
-  "results": [
-    {
-      "filename": "ml_notes.txt",
-      "score": 85.7,
-      "snippet": "Machine learning is a subset of artificial intelligence..."
-    }
-  ]
-}
-```
-
-## Running for development vs production
-
-### For development
-
+Run:
 ```bash
-export FLASK_DEBUG=true
-python app.py
+pytest -q
 ```
 
-### For production deployment
+The test suite covers ingestion persistence, file extraction, semantic ranking behavior, and API endpoint contracts.
 
-1. **Set production environment**
+Evaluation metrics:
+```bash
+python scripts/evaluate.py --eval-file eval/sample_queries.json
+```
 
-   ```bash
-   export SECRET_KEY=your-production-secret-key
-   export FLASK_DEBUG=false
-   export PORT=8000
-   ```
+## Example Use Case
 
-2. **Use a proper web server**
-   ```bash
-   pip install gunicorn
-   gunicorn -w 4 -b 0.0.0.0:8000 app:app
-   ```
+Index internal engineering notes and design docs, then query with natural language (for example, "how we handle cache invalidation") to retrieve semantically relevant passages while still benefiting from lexical signal for exact terminology.
 
-## What I learned from this project
+## Why This Project Matters
 
-- How semantic search works and why it's better than keyword matching
-- Working with pre-trained AI models without training them myself
-- Building a complete web application from scratch
-- Handling different file formats and text extraction
-- Making web interfaces that work well on different devices
-- Basic security practices like input validation and file handling
+This repository demonstrates practical backend engineering patterns: API-first design, clear service boundaries, local persistence, text processing pipelines, and reliable tests. It is intentionally scoped to remain understandable while still reflecting production-minded implementation decisions.
 
-## Challenges I faced
+## Future Improvements
 
-- Understanding how sentence transformers work and which model to use
-- Figuring out efficient ways to handle document embeddings in memory
-- Making the file upload feature secure and reliable
-- Getting the CSS to look good on both desktop and mobile
-- Learning proper Flask application structure
-
-## Future improvements
-
-If I continue working on this, I'd like to add:
-
-- User accounts and authentication
-- Better document management (delete, organize)
-- Support for more file types
-- Advanced search filters
-- Document highlighting for matched sections
-
-## Dependencies
-
-All the Python packages needed are listed in `requirements.txt`. The main ones are:
-
-- Flask for the web framework
-- sentence-transformers for the AI model
-- PyPDF2 and python-docx for file processing
-- Standard libraries for everything else
-
-## Contributing
-
-This is a learning project, but if you find bugs or have suggestions, feel free to open an issue or submit a pull request.
-
-## License
-
-This project is open source under the MIT License.
-
----
-
-Built as a machine learning class project using Flask and Sentence Transformers
+- Add document deletion and re-indexing endpoints
+- Add pagination and cursor-based navigation for large result sets
+- Add model/provider abstraction for optional external embedding backends
+- Expand offline evaluation set with domain-specific relevance labels

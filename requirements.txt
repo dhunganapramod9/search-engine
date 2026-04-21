@@ -4,3 +4,5 @@ PyPDF2
 python-docx
 torch
 gunicorn 
+numpy
+pytest

@@ -1,0 +1,12 @@
+{
+  "queries": [
+    {
+      "query": "semantic ranking and search",
+      "relevant_document_ids": [1]
+    },
+    {
+      "query": "backend API design",
+      "relevant_document_ids": [1]
+    }
+  ]
+}

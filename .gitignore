@@ -122,3 +122,10 @@ models/
 # documents/*.txt
 # documents/*.pdf
 # documents/*.docx 
+
+# Runtime storage
+uploads/
+data/
+documents/
+.pytest_cache/
+*.db
